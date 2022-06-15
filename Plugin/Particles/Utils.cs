@@ -97,6 +97,22 @@ namespace KethaneParticles
 			}
 			return defaultValue;
 		}
+
+		public static void CalcAxes (Vector3 norm, out Vector3 X, out Vector3 Y)
+		{
+			Vector3 axis = Vector3.right;
+			float n = Mathf.Abs (Vector3.Dot (norm, axis));
+			if (Mathf.Abs (Vector3.Dot (norm, Vector3.forward)) < n) {
+				axis = Vector3.forward;
+				n = Mathf.Abs (Vector3.Dot (norm, axis));
+			}
+			if (Mathf.Abs (Vector3.Dot (norm, Vector3.up)) < n) {
+				axis = Vector3.up;
+				n = Mathf.Abs (Vector3.Dot (norm, axis));
+			}
+			Y = Vector3.Cross (norm, axis);
+			X = Vector3.Cross (Y, norm);
+		}
 	}
 
 }

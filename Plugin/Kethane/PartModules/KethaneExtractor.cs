@@ -163,13 +163,16 @@ namespace Kethane.PartModules
 				foreach (var emitter in emitters) {
 					if (hit) {
                         emitter.Position = hitInfo.point;
+                        emitter.Direction = tailTransform.position - headTransform.position;
 					}
 					if (emitter.Label != "gas") {
 						emitter.Emit = hit;
+						emitter.Rate = 20;
 					} else {
 						var bodyResource = getBodyResources("Kethane");
 						if (bodyResource != null && animator.CurrentState == ExtractorState.Deployed) {
 							emitter.Emit = hit && bodyResource.GetQuantity(getCellUnder()) != null;
+							emitter.Rate = 20;
 						} else {
 							emitter.Emit = false;
 						}

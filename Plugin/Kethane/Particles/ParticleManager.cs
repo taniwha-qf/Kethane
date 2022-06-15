@@ -21,7 +21,11 @@ namespace Kethane
 			public float rate;
 			public Vector3 position;
 			public Vector3 direction;
+			public Vector3 spreadX;
+			public Vector3 spreadY;
 			public System system;
+
+			public float emission;
 		}
 
 		static Dictionary<string, ConfigNode> systemCfg;
@@ -41,6 +45,7 @@ namespace Kethane
 			}
 			var emitter = new Emitter ();
 			emitter.system = sys;
+			sys.physics.AddEmitter (emitter);
 			return emitter;
 		}
 

@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 using KethaneParticles;
@@ -91,7 +91,7 @@ namespace Kethane
 				this.size.x = sizeX;
 				this.size.y = sizeY;
 				this.size.z = sizeZ;
-				center = new Vector3 (0.5f, 0.0f, 0.5f);
+				center = new Vector3 (0.5f, 0.5f, 0.5f);
 				scale.x = 1f / size.x;
 				scale.y = 1f / size.y;
 				scale.z = 1f / size.z;
@@ -118,6 +118,8 @@ namespace Kethane
 		public FloatVolume pressure;
 		ParticleSystem.Particle []particles;
 		float []part_sizes;
+		List<ParticleManager.Emitter> emitters;
+		int lastEmitter;
 
 		public void Load (ConfigNode node)
 		{
@@ -129,20 +131,42 @@ namespace Kethane
 			particleDensity = Utils.ParseFloat (node, "particleDensity", particleDensity);
 		}
 
-		void Start ()
+		public void AddEmitter (ParticleManager.Emitter emitter)
 		{
-			pressure = new FloatVolume (new Vector3 (400, 200, 400), 400, 200, 400);
+			emitters.Add (emitter);
 		}
 
-		void Update ()
+		void Awake ()
+		{
+			emitters = new List<ParticleManager.Emitter> ();
+		}
+
+		void Start ()
+		{
+			pressure = new FloatVolume (new Vector3 (400, 400, 400), 200, 200, 200);
+		}
+
+		void FixedUpdate ()
 		{
 			if (psystem == null) {
 				return;
 			}
+			float deltaTime = Time.fixedDeltaTime;
 			InitializeIfNeeded ();
+			Vector3 up = Vector3.up;
+			if (FlightGlobals.ActiveVessel != null) {
+				var body = FlightGlobals.ActiveVessel.mainBody;
+				gravity = FlightGlobals.ActiveVessel.gravityForPos;
+				double altitude = FlightGlobals.getAltitudeAtPos(Vector3d.zero, body);
+				double pressure = FlightGlobals.getStaticPressure (altitude, body);
+				double temperature = body.GetTemperature (altitude);
+				density = (float) FlightGlobals.getAtmDensity (pressure, temperature, body);
+				//Debug.Log ($"[ParticlePhysics] density: {density}");
+				up = -gravity.normalized;
+			}
 
 			int numParticles = psystem.GetParticles (particles);
-			Debug.Log($"[ParticleSystem] {gameObject.name} {numParticles}");
+			//Debug.Log($"[ParticleSystem] {gameObject.name} {numParticles}");
 
 			for (int i = numParticles; i-- > 0; ) {
 				float p = particles[i].GetCurrentSize(psystem);
@@ -153,22 +177,55 @@ namespace Kethane
 				Vector3 pos = particles[i].position;
 				Vector3 vel = particles[i].velocity;
 				Vector3 grad = pressure.Gradient (pos);
-				float dens = density * Mathf.Exp(densityExp * pos.y);
+				float dens = density * Mathf.Exp(densityExp * Vector3.Dot(pos, up));
 				float buoy = (particleDensity - dens) / particleDensity;
 				//Debug.Log ($"[ParticlePhysics] {pos} {pressure[pos]} {grad * 1000}");
 				Vector3 force = gravity * buoy;
 				force += -grad * part_sizes[i] * dispersion;
-				force -= vel * drag;
+				force -= vel * drag * dens;
 				if (pos.y < 0) {
 					force.y = -pos.y;
 				}
 				Vector3 ov = vel;
-				particles[i].velocity = ov + force * TimeWarp.deltaTime;
-				if (i == 0) {
-					Debug.Log ($"[ParticlePhysics] {pos} {grad} {force} {buoy} {gravity} {buoy * gravity} {particles[i].velocity}");
+				particles[i].velocity = ov + force * deltaTime;
+				//if (i == 0) {
+				//	Debug.Log ($"[ParticlePhysics] {pos} {grad} {force} {buoy} {gravity} {buoy * gravity} {particles[i].velocity} {dens} {drag}");
+				//}
+			}
+			int maxParticles = psystem.main.maxParticles;
+			int count = emitters.Count;
+			int eind = lastEmitter;
+			for (int i = 0; i < count && numParticles < maxParticles; i++) {
+				eind = (lastEmitter + i) % count;
+				var emitter = emitters[eind];
+				if (!emitter.enabled) {
+					continue;
+				}
+				emitter.emission += emitter.rate * deltaTime;
+				int num = (int) emitter.emission;
+				emitter.emission -= num;
+				//Debug.Log ($"[ParticlePhysics] emit {num} {emitter.emission}");
+				while (num-- > 0 && numParticles < maxParticles) {
+					SetParticle (emitter, ref particles[numParticles++]);
 				}
 			}
+			lastEmitter = (eind + 1) % count;
 			psystem.SetParticles (particles, numParticles);
+		}
+
+		void SetParticle (ParticleManager.Emitter emitter, ref ParticleSystem.Particle particle)
+		{
+			float x = UnityEngine.Random.value;
+			float y = UnityEngine.Random.value;
+			var main = psystem.main;
+			particle.angularVelocity = (x * 2) - 1;
+			particle.startColor = main.startColor.Evaluate (x, y);;
+			particle.position = emitter.position;
+			particle.rotation = main.startRotation.Evaluate (x, y);
+			particle.startSize = main.startSize.Evaluate (x, y);
+			particle.startLifetime = main.startLifetime.Evaluate (x, y);
+			particle.remainingLifetime = particle.startLifetime;
+			particle.velocity = main.startSpeed.Evaluate (x, y) * (emitter.direction + x * emitter.spreadX + y * emitter.spreadY);
 		}
 
 		void InitializeIfNeeded ()
@@ -181,7 +238,7 @@ namespace Kethane
 
 		void OnDestroy ()
 		{
-			Debug.Log ($"[ParticlePhysics] OnDestroy");
+			//Debug.Log ($"[ParticlePhysics] OnDestroy");
 		}
 	}
 
