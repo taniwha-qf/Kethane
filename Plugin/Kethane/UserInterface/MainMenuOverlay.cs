@@ -1,4 +1,5 @@
-﻿using GeodesicGrid;
+﻿using System.Collections;
+using GeodesicGrid;
 using System.Linq;
 using UnityEngine;
 
@@ -8,6 +9,7 @@ namespace Kethane.UserInterface
 	internal class MainMenuUpdateCatcher : MonoBehaviour
 	{
 		public static GameObject MenuBody = null;
+		public static bool updated = false;
 
         protected void Start()
         {
@@ -37,6 +39,7 @@ namespace Kethane.UserInterface
 					MenuBody = t.gameObject;
 				}
 			}
+			updated = true;
 		}
 	}
 
@@ -56,9 +59,13 @@ namespace Kethane.UserInterface
 			return kerbin;
 		}
 
-        protected void Start()
+        protected IEnumerator Start()
         {
+			Debug.Log ($"[Kethane] MainMenuOverlay Start {MainMenuUpdateCatcher.MenuBody}");
 			if (Utilities.Kopernicus.KopernicusWrapper.Initialize()) {
+				while (!MainMenuUpdateCatcher.updated) {
+					yield return null;
+				}
 				if (MainMenuUpdateCatcher.MenuBody != null) {
 					// Kopernicus already fixed things up
 					Debug.Log ($"[Kethane] adding overlay to: {MainMenuUpdateCatcher.MenuBody.transform.name}");
@@ -75,6 +82,7 @@ namespace Kethane.UserInterface
 
         private bool startMenuOverlay(OverlayRenderer overlayRenderer, GameObject menuBody)
         {
+			Debug.Log ($"[Kethane] startMenuOverlay {menuBody}");
             if (!Misc.Parse(SettingsManager.GetValue("ShowInMenu"), true)) { return false; }
 			if (menuBody == null) {
 				return false;
